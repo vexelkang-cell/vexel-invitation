@@ -9,6 +9,37 @@ export async function onRequest({ request, env, next }) {
   let path;
   try { path = decodeURIComponent(url.pathname.replace(/^\/+|\/+$/g, "")); }
   catch { return new Response("Alamat tidak valid.", { status: 400 }); }
+  if (path === "api/invitations" && request.method === "GET") {
+    if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
+    if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
+    const { results = [] } = await env.VEXEL_DB.prepare("SELECT slug, title, created_at, updated_at FROM invitations ORDER BY created_at DESC").all();
+    return json({ ok: true, invitations: results.map(r => ({ ...r, url: url.origin + "/" + r.slug })) });
+  }
+  const invitationMatch = /^api\\/invitations\\/([a-z0-9-]+)$/.exec(path);
+  if (invitationMatch && ["GET", "PUT", "DELETE"].includes(request.method)) {
+    if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
+    if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
+    const slug = invitationMatch[1];
+    if (request.method === "GET") {
+      const row = await env.VEXEL_DB.prepare("SELECT slug, title, payload, html, created_at, updated_at FROM invitations WHERE slug = ?").bind(slug).first();
+      if (!row) return json({ error: "Undangan tidak ditemukan." }, 404);
+      let data; try { data = JSON.parse(row.payload); } catch { return json({ error: "Data undangan rusak." }, 500); }
+      return json({ ok: true, invitation: { ...row, payload: undefined, data, url: url.origin + "/" + slug } });
+    }
+    if (request.method === "DELETE") {
+      const result = await env.VEXEL_DB.prepare("DELETE FROM invitations WHERE slug = ?").bind(slug).run();
+      if (!result.meta?.changes) return json({ error: "Undangan tidak ditemukan." }, 404);
+      return json({ ok: true, slug });
+    }
+    let body; try { body = await request.json(); } catch { return json({ error: "Data tidak valid." }, 400); }
+    if (!Array.isArray(body.data) || !body.html) return json({ error: "Konten undangan belum lengkap." }, 400);
+    if (String(body.html).length > 8_000_000) return json({ error: "Ukuran halaman terlalu besar." }, 413);
+    const now = new Date().toISOString();
+    const result = await env.VEXEL_DB.prepare("UPDATE invitations SET title = ?, payload = ?, html = ?, updated_at = ? WHERE slug = ?")
+      .bind(String(body.title || "Undangan Pernikahan").slice(0, 120), JSON.stringify(body.data), String(body.html), now, slug).run();
+    if (!result.meta?.changes) return json({ error: "Undangan tidak ditemukan." }, 404);
+    return json({ ok: true, slug, url: url.origin + "/" + slug });
+  }
   if (path === "api/invitations" && request.method === "POST") {
     if (!authorized(request, env)) return json({ error: "Akses admin tidak valid. Masukkan kunci admin." }, 401);
     if (!env.VEXEL_DB) return json({ error: "Database belum terhubung. Atur binding D1 dengan nama VEXEL_DB." }, 503);
