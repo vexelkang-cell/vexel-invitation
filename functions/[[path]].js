@@ -75,7 +75,7 @@ export async function onRequest({ request, env, next }) {
     }
   }
   // Buku tamu digital: ucapan dan konfirmasi kehadiran dengan paginasi 5 item.
-  const wishesMatch = /^api\\/invitations\\/([a-z0-9-]+)\\/wishes$/.exec(path);
+  const wishesMatch = /^api\/invitations\/([a-z0-9-]+)\/wishes$/.exec(path);
   if (wishesMatch && ["GET", "POST"].includes(request.method)) {
     if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
     const slug = wishesMatch[1];
