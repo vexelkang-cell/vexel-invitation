@@ -15,7 +15,7 @@ export async function onRequest({ request, env, next }) {
     const { results = [] } = await env.VEXEL_DB.prepare("SELECT slug, title, created_at, updated_at FROM invitations ORDER BY created_at DESC").all();
     return json({ ok: true, invitations: results.map(r => ({ ...r, url: url.origin + "/" + r.slug })) });
   }
-  const invitationMatch = /^api\\/invitations\\/([a-z0-9-]+)$/.exec(path);
+  const invitationMatch = /^api\/invitations\/([a-z0-9-]+)$/.exec(path);
   if (invitationMatch && ["GET", "PUT", "DELETE"].includes(request.method)) {
     if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
     if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
