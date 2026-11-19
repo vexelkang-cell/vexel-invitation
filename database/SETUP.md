@@ -27,3 +27,26 @@ Slug hanya boleh berisi huruf kecil, angka, dan tanda hubung; panjang 3–48 kar
 - Database menyimpan salinan HTML undangan dan data komponennya. Mengubah draft di browser tidak otomatis mengubah undangan yang sudah terbit.
 - Foto yang diunggah editor saat ini masih berupa data lokal/base64 di dalam halaman terbit. Untuk katalog foto besar dan skala produksi, tahap berikutnya sebaiknya memindahkan aset ke Cloudflare R2.
 - Belum ada login/otorisasi editor pada API publik ini. Jangan gunakan untuk data pribadi sensitif sebelum autentikasi admin ditambahkan.
+
+
+## 4. Siapkan penyimpanan foto permanen (R2)
+1. Cloudflare Dashboard → **R2 Object Storage** → buat bucket, misalnya \`vexel-invitation-assets\`.
+2. Pada bucket, buka **Settings** → aktifkan akses publik melalui domain R2 yang sesuai (disarankan custom domain, misalnya \`media.domain-anda.com\`).
+3. Pages project → **Settings** → **Functions** → **R2 bucket bindings**.
+4. Tambahkan binding variable name persis \`VEXEL_ASSETS\`, pilih bucket tersebut.
+5. Tambahkan variable \`R2_PUBLIC_URL\` berisi URL publik bucket, tanpa garis miring di akhir, misalnya \`https://media.domain-anda.com\`.
+
+## 5. Lindungi akses editor
+1. Pages project → **Settings** → **Variables and Secrets**.
+2. Tambahkan secret bernama persis \`VEXEL_ADMIN_TOKEN\`.
+3. Isi dengan kata sandi acak yang panjang dan unik. Jangan masukkan token ini ke GitHub atau kirimkan ke orang lain.
+4. Simpan, lalu lakukan deployment ulang.
+5. Di editor, klik **Kunci Admin** dan masukkan token tersebut. Token hanya disimpan di memori tab selama sesi aktif.
+
+API upload foto dan penerbitan undangan sekarang mensyaratkan token admin. Foto JPG, PNG, WEBP, dan GIF maksimal 8 MB per file akan diunggah ke R2. Undangan publik mengambil foto dari URL R2, bukan menyimpan foto base64 di database.
+
+## 6. Catatan keamanan dan operasional
+- Jangan menonaktifkan autentikasi atau membagikan \`VEXEL_ADMIN_TOKEN\`.
+- Bucket R2 hanya perlu akses baca publik untuk URL aset; operasi upload tetap melalui Pages Function yang memeriksa token admin.
+- Jika token berubah, masukkan token baru melalui tombol **Kunci Admin** setelah membuka ulang editor.
+- Fitur ini memerlukan D1, R2, binding, secret, dan deployment terbaru. Tanpa konfigurasi tersebut, upload dan publikasi akan menampilkan pesan konfigurasi yang belum tersedia.
