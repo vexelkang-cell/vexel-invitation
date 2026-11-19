@@ -74,27 +74,35 @@ export async function onRequest({ request, env, next }) {
       return json({ error: "Gagal menyalin undangan. Periksa konfigurasi database." }, 500);
     }
   }
-  // Buku tamu digital: ucapan dipisahkan berdasarkan slug undangan.
-  const wishesMatch = /^api\/invitations\/([a-z0-9-]+)\/wishes$/.exec(path);
+  // Buku tamu digital: ucapan dan konfirmasi kehadiran dengan paginasi 5 item.
+  const wishesMatch = /^api\\/invitations\\/([a-z0-9-]+)\\/wishes$/.exec(path);
   if (wishesMatch && ["GET", "POST"].includes(request.method)) {
     if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
     const slug = wishesMatch[1];
     const invitation = await env.VEXEL_DB.prepare("SELECT slug FROM invitations WHERE slug = ?").bind(slug).first();
     if (!invitation) return json({ error: "Undangan tidak ditemukan." }, 404);
-    await env.VEXEL_DB.prepare("CREATE TABLE IF NOT EXISTS invitation_wishes (id TEXT PRIMARY KEY, invitation_slug TEXT NOT NULL, guest_name TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT NOT NULL)").run();
+    await env.VEXEL_DB.prepare("CREATE TABLE IF NOT EXISTS invitation_wishes (id TEXT PRIMARY KEY, invitation_slug TEXT NOT NULL, guest_name TEXT NOT NULL, attendance TEXT NOT NULL DEFAULT '', message TEXT NOT NULL, created_at TEXT NOT NULL)").run();
+    await env.VEXEL_DB.prepare("ALTER TABLE invitation_wishes ADD COLUMN attendance TEXT NOT NULL DEFAULT ''").run().catch(() => {});
     if (request.method === "GET") {
-      const { results = [] } = await env.VEXEL_DB.prepare("SELECT guest_name, message, created_at FROM invitation_wishes WHERE invitation_slug = ? ORDER BY created_at DESC LIMIT 50").bind(slug).all();
-      return json({ ok: true, wishes: results });
+      const pageSize = 5;
+      const countRow = await env.VEXEL_DB.prepare("SELECT COUNT(*) AS total FROM invitation_wishes WHERE invitation_slug = ?").bind(slug).first();
+      const total = Number(countRow?.total || 0);
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const page = Math.min(totalPages, Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1));
+      const { results = [] } = await env.VEXEL_DB.prepare("SELECT guest_name, attendance, message, created_at FROM invitation_wishes WHERE invitation_slug = ? ORDER BY created_at DESC LIMIT ? OFFSET ?").bind(slug, pageSize, (page - 1) * pageSize).all();
+      return json({ ok: true, wishes: results, page, pageSize, total, totalPages });
     }
     let body; try { body = await request.json(); } catch { return json({ error: "Data ucapan tidak valid." }, 400); }
     const name = String(body.name || "").trim().slice(0, 80);
+    const attendance = String(body.attendance || "").trim();
     const message = String(body.message || "").trim().slice(0, 500);
-    if (!name || !message) return json({ error: "Nama dan ucapan wajib diisi." }, 400);
+    if (!name || !attendance || !message) return json({ error: "Nama, kehadiran, dan ucapan wajib diisi." }, 400);
     if (name.length < 2 || message.length < 2) return json({ error: "Nama dan ucapan terlalu pendek." }, 400);
+    if (!["Hadir", "Tidak Hadir"].includes(attendance)) return json({ error: "Pilihan kehadiran tidak valid." }, 400);
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
-    await env.VEXEL_DB.prepare("INSERT INTO invitation_wishes (id, invitation_slug, guest_name, message, created_at) VALUES (?, ?, ?, ?, ?)").bind(id, slug, name, message, createdAt).run();
-    return json({ ok: true, wish: { guest_name: name, message, created_at: createdAt } });
+    await env.VEXEL_DB.prepare("INSERT INTO invitation_wishes (id, invitation_slug, guest_name, attendance, message, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(id, slug, name, attendance, message, createdAt).run();
+    return json({ ok: true, wish: { guest_name: name, attendance, message, created_at: createdAt } });
   }
   // Manajemen tamu: token acak untuk tautan personal.
   const guestPublicMatch = /^api\/guest\/([a-f0-9-]{36})$/.exec(path);
