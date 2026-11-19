@@ -194,8 +194,8 @@ export async function onRequest({ request, env, next }) {
     let body;
     try { body = await request.json(); } catch { return json({ error: "Data upload tidak valid." }, 400); }
     const raw = String(body.data || "");
-    const imageMatch = /^data:(image\\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(raw);
-    const audioMatch = /^data:(audio\\/mpeg);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+    const imageMatch = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+    const audioMatch = /^data:(audio\/mpeg);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
     if (!imageMatch && !audioMatch) return json({ error: "Gunakan foto JPG/PNG/WEBP/GIF atau musik MP3." }, 400);
     const match = audioMatch || imageMatch;
     const isAudio = !!audioMatch;
