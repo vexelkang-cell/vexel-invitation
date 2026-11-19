@@ -186,23 +186,35 @@ export async function onRequest({ request, env, next }) {
   }
   if (path === "api/upload" && request.method === "POST") {
     if (!authorized(request, env)) return json({ error: "Akses admin tidak valid. Masukkan kunci admin." }, 401);
-    if (!env.VEXEL_ASSETS) return json({ error: "Penyimpanan R2 belum terhubung. Atur binding VEXEL_ASSETS." }, 503);
+    if (!env.GOOGLE_DRIVE_WEB_APP_URL || !env.GOOGLE_DRIVE_UPLOAD_SECRET) {
+      return json({ error: "Penyimpanan Google Drive belum dikonfigurasi. Periksa Variables and Secrets." }, 503);
+    }
     let body;
     try { body = await request.json(); } catch { return json({ error: "Data upload tidak valid." }, 400); }
     const raw = String(body.data || "");
-    const imageMatch = /^data:(image[/](?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(raw);
-    const audioMatch = /^data:(audio[/]mpeg);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+    const imageMatch = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+    const audioMatch = /^data:(audio\/mpeg);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
     if (!imageMatch && !audioMatch) return json({ error: "Gunakan foto JPG/PNG/WEBP/GIF atau musik MP3." }, 400);
     const match = audioMatch || imageMatch;
-    const binary = atob(match[2]);
     const isAudio = !!audioMatch;
-    if (binary.length > (isAudio ? 15 : 8) * 1024 * 1024) return json({ error: isAudio ? "Ukuran MP3 maksimal 15 MB." : "Ukuran foto maksimal 8 MB." }, 413);
-    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
-    const ext = isAudio ? "mp3" : { "image/jpeg":"jpg", "image/png":"png", "image/webp":"webp", "image/gif":"gif" }[match[1]];
-    const key = (isAudio ? "assets/musik/" : "invitations/") + crypto.randomUUID() + "." + ext;
-    await env.VEXEL_ASSETS.put(key, bytes, { httpMetadata: { contentType: match[1], cacheControl: "public, max-age=31536000, immutable" } });
-    if (!env.R2_PUBLIC_URL) return json({ error: "File tersimpan, tetapi R2_PUBLIC_URL belum diatur." }, 503);
-    return json({ ok: true, url: env.R2_PUBLIC_URL.replace(/[/]+$/, "") + "/" + key });
+    const estimatedBytes = Math.floor(match[2].length * 3 / 4);
+    if (estimatedBytes > (isAudio ? 15 : 8) * 1024 * 1024) {
+      return json({ error: isAudio ? "Ukuran MP3 maksimal 15 MB." : "Ukuran foto maksimal 8 MB." }, 413);
+    }
+    try {
+      const upstream = await fetch(env.GOOGLE_DRIVE_WEB_APP_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ secret: env.GOOGLE_DRIVE_UPLOAD_SECRET, data: raw })
+      });
+      const result = await upstream.json();
+      if (!result || !result.ok || !result.url) {
+        return json({ error: result?.error || "Upload ke Google Drive gagal." }, 502);
+      }
+      return json({ ok: true, url: result.url, fileId: result.fileId || null });
+    } catch (error) {
+      return json({ error: "Tidak dapat menghubungi Google Drive. Periksa URL Web App dan deployment Apps Script." }, 502);
+    }
   }
   if (path && !path.includes("/") && !["editor", "admin", "katalog", "assets", "api", "favicon.ico", "robots.txt", "sitemap.xml"].includes(path) && request.method === "GET") {
     if (!env.VEXEL_DB) return new Response("Database undangan belum dikonfigurasi.", { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } });
