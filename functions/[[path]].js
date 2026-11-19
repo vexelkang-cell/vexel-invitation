@@ -15,6 +15,42 @@ export async function onRequest({ request, env, next }) {
     const { results = [] } = await env.VEXEL_DB.prepare("SELECT slug, title, created_at, updated_at FROM invitations ORDER BY created_at DESC").all();
     return json({ ok: true, invitations: results.map(r => ({ ...r, url: url.origin + "/" + r.slug })) });
   }
+  const defaultCatalog = [
+    { id: "blush-garden", title: "Blush Garden", category: "Romantic Floral", description: "Nuansa blush pink dan floral lembut untuk suasana romantis.", preview: "/blush-garden.html", visible: true, order: 1 },
+    { id: "sage-serenity", title: "Sage Serenity", category: "Minimalist", description: "Desain minimalis dengan warna sage yang tenang dan natural.", preview: "/sage-serenity.html", visible: true, order: 2 },
+    { id: "royal-midnight", title: "Royal Midnight", category: "Classic Luxury", description: "Tampilan klasik biru navy dan emas untuk kesan mewah.", preview: "/royal-midnight.html", visible: true, order: 3 }
+  ];
+  if (path === "api/catalog" && request.method === "GET") {
+    if (!env.VEXEL_DB) return json({ ok: true, templates: defaultCatalog, configured: false });
+    const row = await env.VEXEL_DB.prepare("SELECT payload FROM catalog_config WHERE id = 1").first().catch(() => null);
+    if (!row) return json({ ok: true, templates: defaultCatalog, configured: false });
+    try {
+      const templates = JSON.parse(row.payload);
+      if (!Array.isArray(templates)) throw new Error("invalid");
+      return json({ ok: true, templates, configured: true });
+    } catch { return json({ ok: true, templates: defaultCatalog, configured: false }); }
+  }
+  if (path === "api/catalog" && request.method === "PUT") {
+    if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
+    if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
+    let body; try { body = await request.json(); } catch { return json({ error: "Data katalog tidak valid." }, 400); }
+    if (!Array.isArray(body.templates) || body.templates.length > 30) return json({ error: "Daftar template tidak valid (maksimal 30)." }, 400);
+    const allowed = new Set(defaultCatalog.map(x => x.id));
+    const templates = [];
+    for (let i = 0; i < body.templates.length; i++) {
+      const x = body.templates[i];
+      if (!x || !allowed.has(String(x.id))) return json({ error: "Template tidak dikenal." }, 400);
+      const category = String(x.category || "").trim().slice(0, 40);
+      const title = String(x.title || "").trim().slice(0, 60);
+      const description = String(x.description || "").trim().slice(0, 180);
+      if (!category || !title) return json({ error: "Nama template dan kategori wajib diisi." }, 400);
+      templates.push({ id: x.id, title, category, description, preview: defaultCatalog.find(d => d.id === x.id).preview, visible: x.visible !== false, order: i + 1 });
+    }
+    const now = new Date().toISOString();
+    await env.VEXEL_DB.prepare("INSERT INTO catalog_config (id, payload, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
+      .bind(JSON.stringify(templates), now).run();
+    return json({ ok: true, templates, updated_at: now });
+  }
   const duplicateMatch = /^api\/invitations\/([a-z0-9-]+)\/duplicate$/.exec(path);
   if (duplicateMatch && request.method === "POST") {
     if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
