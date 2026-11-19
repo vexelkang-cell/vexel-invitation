@@ -74,6 +74,42 @@ export async function onRequest({ request, env, next }) {
       return json({ error: "Gagal menyalin undangan. Periksa konfigurasi database." }, 500);
     }
   }
+  // Manajemen tamu: token acak untuk tautan personal.
+  const guestPublicMatch = /^api\\/guest\\/([a-f0-9-]{36})$/.exec(path);
+  if (guestPublicMatch && request.method === "GET") {
+    if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
+    await env.VEXEL_DB.prepare("CREATE TABLE IF NOT EXISTS invitation_guests (id TEXT PRIMARY KEY, invitation_slug TEXT NOT NULL, guest_name TEXT NOT NULL, phone TEXT, guest_group TEXT, created_at TEXT NOT NULL)").run();
+    const guest = await env.VEXEL_DB.prepare("SELECT guest_name, invitation_slug FROM invitation_guests WHERE id = ?").bind(guestPublicMatch[1]).first();
+    if (!guest) return json({ error: "Tautan tamu tidak ditemukan." }, 404);
+    return json({ ok: true, name: guest.guest_name, slug: guest.invitation_slug });
+  }
+  const guestListMatch = /^api\\/invitations\\/([a-z0-9-]+)\\/guests$/.exec(path);
+  const guestDeleteMatch = /^api\\/invitations\\/([a-z0-9-]+)\\/guests\\/([a-f0-9-]{36})$/.exec(path);
+  if ((guestListMatch || guestDeleteMatch) && ["GET", "POST", "DELETE"].includes(request.method)) {
+    if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
+    if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
+    await env.VEXEL_DB.prepare("CREATE TABLE IF NOT EXISTS invitation_guests (id TEXT PRIMARY KEY, invitation_slug TEXT NOT NULL, guest_name TEXT NOT NULL, phone TEXT, guest_group TEXT, created_at TEXT NOT NULL)").run();
+    const slug = (guestListMatch || guestDeleteMatch)[1];
+    const exists = await env.VEXEL_DB.prepare("SELECT slug FROM invitations WHERE slug = ?").bind(slug).first();
+    if (!exists) return json({ error: "Undangan tidak ditemukan." }, 404);
+    if (request.method === "GET") {
+      const { results = [] } = await env.VEXEL_DB.prepare("SELECT id, guest_name, phone, guest_group, created_at FROM invitation_guests WHERE invitation_slug = ? ORDER BY created_at DESC").bind(slug).all();
+      return json({ ok: true, guests: results.map(g => ({ ...g, url: url.origin + "/" + slug + "?to=" + g.id })) });
+    }
+    if (request.method === "DELETE") {
+      const result = await env.VEXEL_DB.prepare("DELETE FROM invitation_guests WHERE invitation_slug = ? AND id = ?").bind(slug, guestDeleteMatch[2]).run();
+      if (!result.meta?.changes) return json({ error: "Data tamu tidak ditemukan." }, 404);
+      return json({ ok: true });
+    }
+    let body; try { body = await request.json(); } catch { return json({ error: "Data tamu tidak valid." }, 400); }
+    const guestName = String(body.name || "").trim().slice(0, 100);
+    if (!guestName) return json({ error: "Nama tamu wajib diisi." }, 400);
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await env.VEXEL_DB.prepare("INSERT INTO invitation_guests (id, invitation_slug, guest_name, phone, guest_group, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(id, slug, guestName, String(body.phone || "").trim().slice(0, 30), String(body.group || "").trim().slice(0, 50), now).run();
+    return json({ ok: true, guest: { id, name: guestName, url: url.origin + "/" + slug + "?to=" + id } });
+  }
   const invitationMatch = /^api\/invitations\/([a-z0-9-]+)$/.exec(path);
   if (invitationMatch && ["GET", "PUT", "DELETE"].includes(request.method)) {
     if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
