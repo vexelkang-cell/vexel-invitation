@@ -186,14 +186,16 @@ export async function onRequest({ request, env, next }) {
   }
   if (path === "api/upload" && request.method === "POST") {
     if (!authorized(request, env)) return json({ error: "Akses admin tidak valid. Masukkan kunci admin." }, 401);
-    if (!env.GOOGLE_DRIVE_WEB_APP_URL || !env.GOOGLE_DRIVE_UPLOAD_SECRET) {
+    const driveUrl = String(env.GOOGLE_DRIVE_WEB_APP_URL || "").trim();
+    const uploadSecret = String(env.GOOGLE_DRIVE_UPLOAD_SECRET || "").trim();
+    if (!driveUrl || !uploadSecret) {
       return json({ error: "Penyimpanan Google Drive belum dikonfigurasi. Periksa Variables and Secrets." }, 503);
     }
     let body;
     try { body = await request.json(); } catch { return json({ error: "Data upload tidak valid." }, 400); }
     const raw = String(body.data || "");
-    const imageMatch = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(raw);
-    const audioMatch = /^data:(audio\/mpeg);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+    const imageMatch = /^data:(image\\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+    const audioMatch = /^data:(audio\\/mpeg);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
     if (!imageMatch && !audioMatch) return json({ error: "Gunakan foto JPG/PNG/WEBP/GIF atau musik MP3." }, 400);
     const match = audioMatch || imageMatch;
     const isAudio = !!audioMatch;
@@ -202,17 +204,25 @@ export async function onRequest({ request, env, next }) {
       return json({ error: isAudio ? "Ukuran MP3 maksimal 15 MB." : "Ukuran foto maksimal 8 MB." }, 413);
     }
     try {
-      const upstream = await fetch(env.GOOGLE_DRIVE_WEB_APP_URL, {
+      const upstream = await fetch(driveUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ secret: env.GOOGLE_DRIVE_UPLOAD_SECRET, data: raw })
+        body: JSON.stringify({ secret: uploadSecret, data: raw })
       });
-      const result = await upstream.json();
+      const responseText = await upstream.text();
+      let result;
+      try { result = JSON.parse(responseText); }
+      catch {
+        console.error("Google Drive connector returned non-JSON response", upstream.status, responseText.slice(0, 500));
+        return json({ error: "Google Apps Script memberi respons yang tidak dikenali (HTTP " + upstream.status + "). Periksa deployment Web App." }, 502);
+      }
       if (!result || !result.ok || !result.url) {
-        return json({ error: result?.error || "Upload ke Google Drive gagal." }, 502);
+        console.error("Google Drive connector rejected upload", upstream.status, result?.error || "unknown error");
+        return json({ error: result?.error || "Upload ke Google Drive gagal (HTTP " + upstream.status + ")." }, 502);
       }
       return json({ ok: true, url: result.url, fileId: result.fileId || null });
     } catch (error) {
+      console.error("Google Drive upload request failed", String(error));
       return json({ error: "Tidak dapat menghubungi Google Drive. Periksa URL Web App dan deployment Apps Script." }, 502);
     }
   }
