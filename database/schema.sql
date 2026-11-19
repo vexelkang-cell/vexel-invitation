@@ -7,3 +7,10 @@ CREATE TABLE IF NOT EXISTS invitations (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_invitations_created_at ON invitations(created_at);
+
+-- Konfigurasi kategori dan tampilan katalog template
+CREATE TABLE IF NOT EXISTS catalog_config (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  payload TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
