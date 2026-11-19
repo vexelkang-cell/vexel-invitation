@@ -124,6 +124,7 @@ $('confirmPublish').onclick=async()=>{
   const response=await fetch(editSlug?('/api/invitations/'+encodeURIComponent(editSlug)):'/api/invitations',{method:editSlug?'PUT':'POST',headers:{'content-type':'application/json','authorization':'Bearer '+adminToken},body:JSON.stringify({slug,title:'The Wedding Of '+(cover?.groom||'')+' & '+(cover?.bride||''),data,html})});
   const result=await response.json();
   if(!response.ok)throw new Error(result.error||'Gagal menerbitkan undangan.');
+  editSlug=slug;
   publishMessage.textContent=editSlug?'Perubahan berhasil disimpan: '+result.url:'Berhasil diterbitkan: '+result.url;
   const link=document.createElement('a');link.href=result.url;link.target='_blank';link.rel='noopener';link.textContent=' Buka undangan';publishMessage.appendChild(link);
   const copy=document.createElement('button');copy.className='btn';copy.textContent='Salin tautan';copy.style.marginLeft='8px';copy.onclick=()=>navigator.clipboard.writeText(result.url);publishMessage.appendChild(copy);
