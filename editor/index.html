@@ -52,11 +52,11 @@
 }
 
 .preview-tools{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
-.preview-stage{width:100%;min-width:100%;min-height:100%;display:flex;justify-content:center;align-items:flex-start}
+.preview-stage{width:100%;min-width:100%;min-height:100%;display:block}
 #preview{transform:scale(var(--preview-zoom,1));transform-origin:top left;flex:none}
 #previewCanvas{overflow:auto;touch-action:pan-x pan-y;cursor:grab}
 #previewCanvas:active{cursor:grabbing}
-@media(max-width:1000px){.preview-stage{justify-content:flex-start}}
+@media(max-width:1000px){.preview-stage{display:block}}
 </style></head><body>
 <header class="top"><a class="brand" href="../">VEXEL <span>INVITATION</span></a><div class="actions"><span id="status" class="sub">Draft lokal</span><button class="btn" id="adminBtn">Kunci Admin</button><button class="btn" id="guestBtn">Manajemen Tamu</button><button class="btn" id="previewBtn">Preview</button><button class="btn primary" id="saveBtn">Simpan Draft</button><button class="btn primary" id="publishBtn">Terbitkan</button></div></header>
 <main class="layout"><aside class="panel"><div class="head">Komponen Undangan<div class="sub">Pilih, geser urutan, atau sembunyikan</div></div><div class="list" id="list"></div><button class="add" id="add">＋ Tambah Komponen</button></aside>
@@ -150,6 +150,7 @@ function updatePreviewZoom(){
  const w=el.offsetWidth,h=el.scrollHeight;
  el.style.transform='scale('+previewZoom+')';
  stage.style.width=Math.max(canvas.clientWidth,w*previewZoom)+'px';
+ el.style.marginLeft=Math.max(0,(canvas.clientWidth-w*previewZoom)/2)+'px';
  stage.style.height=(h*previewZoom)+'px';
  stage.style.minWidth=stage.style.width;
  $('zoomLabel').textContent=Math.round(previewZoom*100)+'%';
