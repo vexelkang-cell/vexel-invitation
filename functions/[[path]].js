@@ -220,7 +220,9 @@ export async function onRequest({ request, env, next }) {
         console.error("Google Drive connector rejected upload", upstream.status, result?.error || "unknown error");
         return json({ error: result?.error || "Upload ke Google Drive gagal (HTTP " + upstream.status + ")." }, 502);
       }
-      const fileId = String(result.fileId || (String(result.url).match(/(?:id=|\\/d\\/)([a-zA-Z0-9_-]{15,})/) || [])[1] || "").trim();
+      const urlText = String(result.url || "");
+      const idFromUrl = urlText.includes("id=") ? urlText.split("id=").pop().split("&")[0] : (urlText.includes("/d/") ? urlText.split("/d/").pop().split("/")[0] : "");
+      const fileId = String(result.fileId || idFromUrl).trim();
       // Google Drive viewer URLs cannot be used directly as an image source.
       const displayUrl = fileId ? "https://drive.google.com/uc?export=view&id=" + encodeURIComponent(fileId) : result.url;
       return json({ ok: true, url: displayUrl, fileId: fileId || null });
