@@ -81,8 +81,8 @@
 .preview-tools{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
 .preview-stage{width:100%;min-width:100%;min-height:100%;display:block}
 #preview{transform:scale(var(--preview-zoom,1));transform-origin:top left;flex:none}
-#previewCanvas{flex:1;min-height:0;overflow-x:auto!important;overflow-y:auto!important;overscroll-behavior:contain;touch-action:pan-x pan-y;cursor:grab;position:relative}
-#previewCanvas:active{cursor:grabbing}
+#previewCanvas{flex:1;min-height:0;overflow-x:auto!important;overflow-y:auto!important;overscroll-behavior:contain;touch-action:pan-x pan-y;cursor:default;position:relative}
+#previewCanvas:active{cursor:default}
 @media(max-width:1000px){.preview-stage{display:block}}
 </style></head><body>
 <header class="top"><a class="brand" href="../">VEXEL <span>INVITATION</span></a><div class="actions"><span id="status" class="sub">Draft lokal</span><button class="btn" id="adminBtn">Kunci Admin</button><button class="btn" id="guestBtn">Manajemen Tamu</button><button class="btn" id="previewBtn">Preview</button><button class="btn primary" id="saveBtn">Simpan Draft</button><button class="btn primary" id="publishBtn">Terbitkan</button></div></header>
