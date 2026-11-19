@@ -357,6 +357,7 @@ $('confirmPublish').onclick=async()=>{
   if(!response.ok)throw new Error(result.error||'Gagal memuat undangan.');
   if(!Array.isArray(result.invitation?.data)||!result.invitation.data.length)throw new Error('Data undangan tidak ditemukan.');
   data=result.invitation.data.map(x=>({enabled:true,animation:'none',...x}));
+  try{const assetResponse=await fetch('/api/invitations/'+encodeURIComponent(editSlug)+'/assets',{headers:{authorization:'Bearer '+adminToken}});if(assetResponse.ok){const assetResult=await assetResponse.json();projectSetup={...projectSetup,slug:editSlug,assets:assetResult.assets||[]};localStorage.setItem('vexel-asset-collection-'+editSlug,JSON.stringify(projectSetup.assets));}}catch(e){}
   const ogMatch=String(result.invitation.html||'').match(/<meta property="og:image" content="([^"]*)"/i);if(ogMatch)showOgPreview(ogMatch[1]);
   selected=data[0]?.id||null;
   render();
