@@ -50,3 +50,19 @@ API upload foto dan penerbitan undangan sekarang mensyaratkan token admin. Foto 
 - Bucket R2 hanya perlu akses baca publik untuk URL aset; operasi upload tetap melalui Pages Function yang memeriksa token admin.
 - Jika token berubah, masukkan token baru melalui tombol **Kunci Admin** setelah membuka ulang editor.
 - Fitur ini memerlukan D1, R2, binding, secret, dan deployment terbaru. Tanpa konfigurasi tersebut, upload dan publikasi akan menampilkan pesan konfigurasi yang belum tersedia.
+
+## 7. Aktifkan pengelolaan katalog
+1. Buka database D1 `vexel-invitations` → **Console**.
+2. Jalankan perintah SQL berikut satu kali untuk membuat tabel konfigurasi katalog:
+
+```sql
+CREATE TABLE IF NOT EXISTS catalog_config (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  payload TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+```
+3. Setelah deployment terbaru selesai, buka Dashboard Admin. Bagian **Kelola Katalog Template** dapat digunakan untuk mengubah judul, kategori, deskripsi, dan status tampil setiap contoh undangan.
+4. Pengunjung dapat menyaring katalog menggunakan kategori yang tersedia. Tombol preview membuka halaman template masing-masing.
+
+Jika tabel belum dibuat, katalog publik masih menampilkan tiga template bawaan, tetapi perubahan katalog dari admin akan gagal disimpan sampai tabel tersedia.
