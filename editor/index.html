@@ -342,6 +342,7 @@ publishDialog.addEventListener('click',e=>{if(e.target===publishDialog)publishDi
 $('confirmPublish').onclick=async()=>{
  const slug=slugInput.value.toLowerCase().trim().replace(/^\/+|\/+$/g,'');
  if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)||slug.length<3||slug.length>48){publishMessage.textContent='Nama tautan minimal 3 karakter, hanya huruf kecil, angka, dan tanda hubung.';return}
+ if(!editSlug&&!ogImageUrl){publishMessage.textContent='Silakan unggah foto pratinjau WhatsApp terlebih dahulu.';return}
  const btn=$('confirmPublish');btn.disabled=true;btn.textContent=editSlug?'Menyimpan...':'Menerbitkan...';publishMessage.textContent=editSlug?'Sedang menyimpan perubahan undangan...':'Sedang menyimpan dan menerbitkan undangan...';
  try{
   const styles=[...document.querySelectorAll('style')].map(s=>s.innerHTML).join('\n');
