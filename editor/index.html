@@ -54,7 +54,7 @@
 .preview-tools{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
 .preview-stage{width:100%;min-width:100%;min-height:100%;display:block}
 #preview{transform:scale(var(--preview-zoom,1));transform-origin:top left;flex:none}
-#previewCanvas{overflow:auto;touch-action:pan-x pan-y;cursor:grab}
+#previewCanvas{flex:1;min-height:0;overflow-x:auto!important;overflow-y:auto!important;overscroll-behavior:contain;touch-action:pan-x pan-y;cursor:grab;position:relative}
 #previewCanvas:active{cursor:grabbing}
 @media(max-width:1000px){.preview-stage{display:block}}
 </style></head><body>
@@ -147,7 +147,7 @@ let previewZoom=1;
 function updatePreviewZoom(){
  const canvas=$('previewCanvas'),stage=$('previewStage'),el=$('preview');
  if(!canvas||!stage||!el)return;
- const w=el.offsetWidth,h=el.scrollHeight;
+ const w=el.offsetWidth,h=Math.max(el.scrollHeight,el.offsetHeight,el.getBoundingClientRect().height);
  el.style.transform='scale('+previewZoom+')';
  stage.style.width=Math.max(canvas.clientWidth,w*previewZoom)+'px';
  el.style.marginLeft=Math.max(0,(canvas.clientWidth-w*previewZoom)/2)+'px';
@@ -159,7 +159,12 @@ $('zoomIn').onclick=()=>{previewZoom=Math.min(1.8,+(previewZoom+.1).toFixed(2));
 $('zoomOut').onclick=()=>{previewZoom=Math.max(.5,+(previewZoom-.1).toFixed(2));updatePreviewZoom()};
 $('zoomReset').onclick=()=>{previewZoom=1;updatePreviewZoom();$('previewCanvas').scrollTo({left:0,top:0,behavior:'smooth'})};
 document.querySelectorAll('[data-size]').forEach(b=>b.onclick=()=>{size=b.dataset.size;document.querySelectorAll('[data-size]').forEach(z=>z.classList.toggle('active',z===b));preview();requestAnimationFrame(updatePreviewZoom)});
-const previewObserver=new ResizeObserver(()=>updatePreviewZoom());previewObserver.observe($('previewCanvas'));previewObserver.observe($('preview'));
+const previewObserver=new ResizeObserver(()=>requestAnimationFrame(updatePreviewZoom));previewObserver.observe($('previewCanvas'));previewObserver.observe($('preview'));
+const previewMutationObserver=new MutationObserver(()=>requestAnimationFrame(updatePreviewZoom));previewMutationObserver.observe($('preview'),{childList:true,subtree:true,attributes:true});
+$('previewCanvas').addEventListener('wheel',e=>{
+ const canvas=$('previewCanvas');
+ if(e.shiftKey){canvas.scrollLeft+=e.deltaY||e.deltaX;e.preventDefault()}
+},{passive:false});
 render();requestAnimationFrame(updatePreviewZoom);
 
 
