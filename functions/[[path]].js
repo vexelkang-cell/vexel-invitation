@@ -52,6 +52,33 @@ export async function onRequest({ request, env, next }) {
       .bind(JSON.stringify(templates), now).run();
     return json({ ok: true, templates, updated_at: now });
   }
+  const assetCollectionMatch = /^api\/invitations\/([a-z0-9-]+)\/assets$/.exec(path);
+  if (assetCollectionMatch && ["GET", "PUT"].includes(request.method)) {
+    if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
+    if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
+    await env.VEXEL_DB.prepare("CREATE TABLE IF NOT EXISTS invitation_asset_collections (slug TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)").run();
+    const slug = assetCollectionMatch[1];
+    if (request.method === "GET") {
+      const row = await env.VEXEL_DB.prepare("SELECT payload, updated_at FROM invitation_asset_collections WHERE slug = ?").bind(slug).first();
+      if (!row) return json({ ok: true, assets: [], updated_at: null });
+      try { const assets = JSON.parse(row.payload); return json({ ok: true, assets: Array.isArray(assets) ? assets : [], updated_at: row.updated_at }); }
+      catch { return json({ error: "Data koleksi aset rusak." }, 500); }
+    }
+    let body; try { body = await request.json(); } catch { return json({ error: "Data koleksi aset tidak valid." }, 400); }
+    if (!Array.isArray(body.assets) || body.assets.length > 150) return json({ error: "Koleksi maksimal 150 aset." }, 400);
+    const assets = [];
+    for (const item of body.assets) {
+      const name = String(item?.name || "").trim().slice(0, 180);
+      const assetUrl = String(item?.url || "").trim();
+      const type = String(item?.type || "");
+      if (!name || !/^https:\/\//i.test(assetUrl) || !["image", "audio"].includes(type)) return json({ error: "Ada data aset yang tidak valid." }, 400);
+      assets.push({ name, url: assetUrl, type, size: Math.max(0, Number(item.size) || 0) });
+    }
+    const now = new Date().toISOString();
+    await env.VEXEL_DB.prepare("INSERT INTO invitation_asset_collections (slug, payload, updated_at) VALUES (?, ?, ?) ON CONFLICT(slug) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
+      .bind(slug, JSON.stringify(assets), now).run();
+    return json({ ok: true, assets, updated_at: now });
+  }
   const duplicateMatch = /^api\/invitations\/([a-z0-9-]+)\/duplicate$/.exec(path);
   if (duplicateMatch && request.method === "POST") {
     if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
@@ -68,6 +95,9 @@ export async function onRequest({ request, env, next }) {
     try {
       await env.VEXEL_DB.prepare("INSERT INTO invitations (slug, title, payload, html, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
         .bind(newSlug, title, source.payload, source.html, now, now).run();
+      await env.VEXEL_DB.prepare("CREATE TABLE IF NOT EXISTS invitation_asset_collections (slug TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)").run();
+      await env.VEXEL_DB.prepare("INSERT INTO invitation_asset_collections (slug, payload, updated_at) SELECT ?, payload, ? FROM invitation_asset_collections WHERE slug = ? ON CONFLICT(slug) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
+        .bind(newSlug, now, sourceSlug).run();
       return json({ ok: true, slug: newSlug, url: url.origin + "/" + newSlug });
     } catch (e) {
       if (/UNIQUE|constraint/i.test(String(e && e.message || e))) return json({ error: "Tautan /" + newSlug + " sudah digunakan. Silakan pilih nama lain." }, 409);
