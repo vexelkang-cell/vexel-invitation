@@ -2,7 +2,7 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), { status
 const validSlug = (s) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s) && s.length >= 3 && s.length <= 48;
 const authorized = (request, env) => {
   const expected = String(env.VEXEL_ADMIN_TOKEN || "").trim();
-  const supplied = String(request.headers.get("authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+  const supplied = String(request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
   return !!expected && !!supplied && supplied === expected;
 };
 export async function onRequest({ request, env, next }) {
