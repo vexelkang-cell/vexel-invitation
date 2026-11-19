@@ -15,6 +15,28 @@ export async function onRequest({ request, env, next }) {
     const { results = [] } = await env.VEXEL_DB.prepare("SELECT slug, title, created_at, updated_at FROM invitations ORDER BY created_at DESC").all();
     return json({ ok: true, invitations: results.map(r => ({ ...r, url: url.origin + "/" + r.slug })) });
   }
+  const duplicateMatch = /^api\/invitations\/([a-z0-9-]+)\/duplicate$/.exec(path);
+  if (duplicateMatch && request.method === "POST") {
+    if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
+    if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
+    const sourceSlug = duplicateMatch[1];
+    let body; try { body = await request.json(); } catch { return json({ error: "Data tidak valid." }, 400); }
+    const newSlug = String(body.slug || "").toLowerCase().trim();
+    if (!validSlug(newSlug)) return json({ error: "Tautan baru harus 3–48 karakter, huruf kecil, angka, dan tanda hubung." }, 400);
+    if (newSlug === sourceSlug) return json({ error: "Tautan salinan harus berbeda dari undangan asli." }, 400);
+    const source = await env.VEXEL_DB.prepare("SELECT title, payload, html FROM invitations WHERE slug = ?").bind(sourceSlug).first();
+    if (!source) return json({ error: "Undangan asli tidak ditemukan." }, 404);
+    const now = new Date().toISOString();
+    const title = String(body.title || ("Salinan - " + source.title)).slice(0, 120);
+    try {
+      await env.VEXEL_DB.prepare("INSERT INTO invitations (slug, title, payload, html, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(newSlug, title, source.payload, source.html, now, now).run();
+      return json({ ok: true, slug: newSlug, url: url.origin + "/" + newSlug });
+    } catch (e) {
+      if (/UNIQUE|constraint/i.test(String(e && e.message || e))) return json({ error: "Tautan /" + newSlug + " sudah digunakan. Silakan pilih nama lain." }, 409);
+      return json({ error: "Gagal menyalin undangan. Periksa konfigurasi database." }, 500);
+    }
+  }
   const invitationMatch = /^api\/invitations\/([a-z0-9-]+)$/.exec(path);
   if (invitationMatch && ["GET", "PUT", "DELETE"].includes(request.method)) {
     if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
