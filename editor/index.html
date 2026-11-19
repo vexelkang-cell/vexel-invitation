@@ -50,10 +50,17 @@
   scrollbar-gutter:stable;
  }
 }
+
+.preview-tools{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.preview-stage{width:100%;min-width:100%;min-height:100%;display:flex;justify-content:center;align-items:flex-start}
+#preview{transform:scale(var(--preview-zoom,1));transform-origin:top left;flex:none}
+#previewCanvas{overflow:auto;touch-action:pan-x pan-y;cursor:grab}
+#previewCanvas:active{cursor:grabbing}
+@media(max-width:1000px){.preview-stage{justify-content:flex-start}}
 </style></head><body>
 <header class="top"><a class="brand" href="../">VEXEL <span>INVITATION</span></a><div class="actions"><span id="status" class="sub">Draft lokal</span><button class="btn" id="adminBtn">Kunci Admin</button><button class="btn" id="guestBtn">Manajemen Tamu</button><button class="btn" id="previewBtn">Preview</button><button class="btn primary" id="saveBtn">Simpan Draft</button><button class="btn primary" id="publishBtn">Terbitkan</button></div></header>
 <main class="layout"><aside class="panel"><div class="head">Komponen Undangan<div class="sub">Pilih, geser urutan, atau sembunyikan</div></div><div class="list" id="list"></div><button class="add" id="add">＋ Tambah Komponen</button></aside>
-<section class="center"><div class="toolbar"><b>Live Preview</b><div><button class="device active" data-size="mobile">▯ HP</button> <button class="device" data-size="desktop">▭ Desktop</button></div></div><div class="canvas"><div class="invite" id="preview"></div></div></section>
+<section class="center"><div class="toolbar"><b>Live Preview</b><div class="preview-tools"><button class="device active" data-size="mobile">▯ HP</button> <button class="device" data-size="desktop">▭ Desktop</button><button class="device" id="zoomOut" title="Perkecil">−</button><span id="zoomLabel" class="sub" style="min-width:42px;text-align:center">100%</span><button class="device" id="zoomIn" title="Perbesar">＋</button><button class="device" id="zoomReset" title="Atur ulang">↺</button></div></div><div class="canvas" id="previewCanvas"><div class="preview-stage" id="previewStage"><div class="invite" id="preview"></div></div></div></section>
 <aside class="panel right"><div class="head">Pengaturan Komponen<div class="sub">Edit isi, aset, dan animasi</div></div><div class="settings" id="settings"><p class="hint">Pilih komponen di panel kiri.</p></div></aside></main><div class="toast" id="toast"></div><div class="picker-overlay" id="colorPicker"><div class="picker-box"><div class="picker-top"><b>Pilih Warna</b><button class="btn" id="closeColorPicker">✕</button></div><div class="picker-stage"><canvas class="picker-wheel" id="hueWheel" width="440" height="440" aria-label="Lingkaran pilihan warna"></canvas><div class="picker-side"><div class="picker-sv" id="svArea"><span class="picker-dot" id="svDot"></span></div><div class="picker-preview" id="pickerPreview"></div><div class="hint">Geser pada lingkaran untuk memilih warna, lalu pilih terang atau gelap pada kotak.</div></div></div><div class="field" style="margin:14px 0 0"><label>Kode warna HEX</label><input id="pickerHex" value="#7357DF" maxlength="7" spellcheck="false"></div><div class="picker-actions"><button class="btn" id="cancelColorPicker">Batal</button><button class="btn primary" id="applyColorPicker">Gunakan Warna</button></div></div></div><div id="publishDialog" style="display:none;position:fixed;inset:0;background:#17152899;z-index:30;align-items:center;justify-content:center;padding:16px"><div style="background:white;border-radius:16px;padding:22px;width:min(440px,100%);box-shadow:0 20px 60px #0003"><h2 style="margin:0 0 6px">Terbitkan Undangan</h2><p class="hint">Tentukan sendiri nama tautan untuk undangan ini.</p><div class="field"><label>Alamat undangan</label><div style="display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;overflow:hidden"><span style="padding:10px;background:#f5f4f8;color:#777">vexelinvitation.pages.dev/</span><input id="slugInput" maxlength="48" placeholder="aditianindia" style="min-width:0;flex:1;border:0;padding:11px;outline:none"></div><p class="hint">Gunakan huruf kecil, angka, atau tanda hubung. Contoh: aditianindia</p></div><div id="publishMessage" class="hint" style="margin:10px 0"></div><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="cancelPublish">Batal</button><button class="btn primary" id="confirmPublish">Terbitkan Undangan</button></div></div></div>
 <div id="guestModal" class="add-modal" role="dialog" aria-modal="true"><div class="add-dialog"><div class="add-dialog-head"><div><h2>Manajemen Tamu</h2><p>Buat tautan khusus untuk setiap penerima undangan.</p></div><button type="button" class="add-close" id="closeGuestModal">✕</button></div><div id="guestNoSlug" class="hint">Terbitkan undangan terlebih dahulu agar tautan tamu dapat dibuat.</div><div id="guestManager" style="display:none"><div class="design-grid"><div class="field"><label>Nama tamu</label><input id="guestName" placeholder="Bapak Ahmad"></div><div class="field"><label>Grup / Keterangan</label><input id="guestGroup" placeholder="Keluarga / Teman"></div></div><div class="field"><label>Nomor WhatsApp (opsional)</label><input id="guestPhone" placeholder="08xxxxxxxxxx"></div><button class="btn primary" id="addGuestBtn" type="button" style="width:100%">＋ Tambahkan Tamu</button><div class="section-title">Daftar Tamu</div><div id="guestList" class="hint">Memuat daftar tamu...</div></div></div></div><div class="add-modal" id="addModal" role="dialog" aria-modal="true" aria-labelledby="addModalTitle"><div class="add-dialog"><div class="add-dialog-head"><div><h2 id="addModalTitle">Tambah Komponen</h2><p>Pilih bagian yang ingin ditambahkan ke undangan.</p></div><button type="button" class="add-close" id="closeAddModal" aria-label="Tutup">✕</button></div><div class="add-grid" id="addGrid"></div><p class="hint" style="margin:14px 2px 0">Komponen baru akan ditambahkan di bagian paling bawah. Kamu bisa mengubah urutannya dengan menyeret komponen di panel kiri.</p></div></div>
 <script>
@@ -136,7 +143,23 @@ $('closeAddModal').onclick=closeAddModal;
 $('addModal').addEventListener('click',e=>{if(e.target===$('addModal'))closeAddModal()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAddModal()});
 $('saveBtn').onclick=()=>save();$('previewBtn').onclick=()=>{let w=window.open('','_blank');if(!w){notify('Izinkan pop-up untuk membuka preview');return}let styles=[...document.querySelectorAll('style')].map(s=>s.innerHTML).join('');w.document.write('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Preview Undangan</title><style>body{margin:0;background:#eee}.invite{max-width:520px;margin:auto;background:white;min-height:100vh;text-align:center}'+styles+'</style></head><body><div class="invite">'+$('preview').innerHTML+'</div></body></html>');w.document.close()};
-document.querySelectorAll('[data-size]').forEach(b=>b.onclick=()=>{size=b.dataset.size;document.querySelectorAll('[data-size]').forEach(z=>z.classList.toggle('active',z===b));preview()});render();
+let previewZoom=1;
+function updatePreviewZoom(){
+ const canvas=$('previewCanvas'),stage=$('previewStage'),el=$('preview');
+ if(!canvas||!stage||!el)return;
+ const w=el.offsetWidth,h=el.scrollHeight;
+ el.style.transform='scale('+previewZoom+')';
+ stage.style.width=Math.max(canvas.clientWidth,w*previewZoom)+'px';
+ stage.style.height=(h*previewZoom)+'px';
+ stage.style.minWidth=stage.style.width;
+ $('zoomLabel').textContent=Math.round(previewZoom*100)+'%';
+}
+$('zoomIn').onclick=()=>{previewZoom=Math.min(1.8,+(previewZoom+.1).toFixed(2));updatePreviewZoom()};
+$('zoomOut').onclick=()=>{previewZoom=Math.max(.5,+(previewZoom-.1).toFixed(2));updatePreviewZoom()};
+$('zoomReset').onclick=()=>{previewZoom=1;updatePreviewZoom();$('previewCanvas').scrollTo({left:0,top:0,behavior:'smooth'})};
+document.querySelectorAll('[data-size]').forEach(b=>b.onclick=()=>{size=b.dataset.size;document.querySelectorAll('[data-size]').forEach(z=>z.classList.toggle('active',z===b));preview();requestAnimationFrame(updatePreviewZoom)});
+const previewObserver=new ResizeObserver(()=>updatePreviewZoom());previewObserver.observe($('previewCanvas'));previewObserver.observe($('preview'));
+render();requestAnimationFrame(updatePreviewZoom);
 
 
 const guestModal=$('guestModal');
