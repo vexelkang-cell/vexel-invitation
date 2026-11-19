@@ -134,7 +134,7 @@ export async function onRequest({ request, env, next }) {
     if (!env.R2_PUBLIC_URL) return json({ error: "Foto tersimpan, tetapi R2_PUBLIC_URL belum diatur. Atur domain publik bucket R2." }, 503);
     return json({ ok: true, url: env.R2_PUBLIC_URL.replace(/\/+$/, "") + "/" + key });
   }
-  if (path && !path.includes("/") && !["editor", "katalog", "assets", "api", "favicon.ico", "robots.txt", "sitemap.xml"].includes(path) && request.method === "GET") {
+  if (path && !path.includes("/") && !["editor", "admin", "katalog", "assets", "api", "favicon.ico", "robots.txt", "sitemap.xml"].includes(path) && request.method === "GET") {
     if (!env.VEXEL_DB) return new Response("Database undangan belum dikonfigurasi.", { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } });
     const row = await env.VEXEL_DB.prepare("SELECT title, html FROM invitations WHERE slug = ?").bind(path.toLowerCase()).first();
     if (!row) return new Response("Undangan tidak ditemukan.", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
