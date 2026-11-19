@@ -19,7 +19,7 @@ const initial=[
 ];
 let data;try{data=JSON.parse(localStorage.getItem('vexel-editor-data')||'null')}catch(e){}if(!Array.isArray(data)||!data.length)data=initial;
 data=data.map(x=>({enabled:true,animation:'none',...x}));
-let selected=data[0]?.id||null,size='mobile',dragged=null,adminToken='';const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let selected=data[0]?.id||null,size='mobile',dragged=null,adminToken='',editSlug=new URLSearchParams(location.search).get('edit');const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notify(t){$('toast').textContent=t;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',2200)}
 function save(silent=false){try{localStorage.setItem('vexel-editor-data',JSON.stringify(data));$('status').textContent='● Tersimpan di perangkat';if(!silent)notify('Draft berhasil disimpan di perangkat ini')}catch(e){notify('Penyimpanan penuh. Coba gunakan foto berukuran lebih kecil.')}}
 function list(){$('list').innerHTML=data.map(x=>'<div class="item '+(x.id===selected?'active ':'')+(x.enabled?'':'off')+'" draggable="true" data-id="'+esc(x.id)+'"><span class="drag">⠿</span><span class="label">'+esc(x.name)+'</span><span title="'+(x.enabled?'Sembunyikan':'Tampilkan')+'" class="toggle" data-toggle="'+esc(x.id)+'">'+(x.enabled?'◉':'○')+'</span></div>').join('');document.querySelectorAll('.item').forEach(el=>{el.onclick=e=>{if(e.target.dataset.toggle)return;selected=el.dataset.id;render()};el.ondragstart=()=>{dragged=el.dataset.id};el.ondragover=e=>e.preventDefault();el.ondrop=e=>{e.preventDefault();let target=el.dataset.id;if(!dragged||dragged===target)return;let from=data.findIndex(x=>x.id===dragged),to=data.findIndex(x=>x.id===target),moved=data.splice(from,1)[0];data.splice(to,0,moved);dragged=null;render();save(true)}});document.querySelectorAll('[data-toggle]').forEach(el=>el.onclick=e=>{e.stopPropagation();let x=data.find(a=>a.id===el.dataset.toggle);x.enabled=!x.enabled;render();save(true)})}
@@ -61,26 +61,47 @@ document.querySelectorAll('[data-size]').forEach(b=>b.onclick=()=>{size=b.datase
 
 const publishDialog=$('publishDialog'), slugInput=$('slugInput'), publishMessage=$('publishMessage');
 $('adminBtn').onclick=()=>{const value=prompt('Masukkan kunci admin VEXEL INVITATION:');if(value!==null&&value.trim()){adminToken=value.trim();notify('Kunci admin aktif untuk sesi ini')}};
-function openPublish(){if(!adminToken){notify('Aktifkan Kunci Admin terlebih dahulu');return}publishDialog.style.display='flex';slugInput.value='';publishMessage.textContent='';slugInput.focus()}
+function openPublish(){if(!adminToken){notify('Aktifkan Kunci Admin terlebih dahulu');return}publishDialog.style.display='flex';slugInput.value=editSlug||'';slugInput.readOnly=!!editSlug;publishMessage.textContent=editSlug?'Mode edit: tautan undangan tidak dapat diubah.':'';$('confirmPublish').textContent=editSlug?'Simpan Perubahan':'Terbitkan Undangan';slugInput.focus()}
 $('publishBtn').onclick=openPublish;
 $('cancelPublish').onclick=()=>publishDialog.style.display='none';
 publishDialog.addEventListener('click',e=>{if(e.target===publishDialog)publishDialog.style.display='none'});
 $('confirmPublish').onclick=async()=>{
  const slug=slugInput.value.toLowerCase().trim().replace(/^\/+|\/+$/g,'');
  if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)||slug.length<3||slug.length>48){publishMessage.textContent='Nama tautan minimal 3 karakter, hanya huruf kecil, angka, dan tanda hubung.';return}
- const btn=$('confirmPublish');btn.disabled=true;btn.textContent='Menerbitkan...';publishMessage.textContent='Sedang menyimpan dan menerbitkan undangan...';
+ const btn=$('confirmPublish');btn.disabled=true;btn.textContent=editSlug?'Menyimpan...':'Menerbitkan...';publishMessage.textContent=editSlug?'Sedang menyimpan perubahan undangan...':'Sedang menyimpan dan menerbitkan undangan...';
  try{
   const styles=[...document.querySelectorAll('style')].map(s=>s.innerHTML).join('\n');
   const cover=data.find(x=>x.type==='cover');
   const html='<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#fff5f7"><title>Undangan Pernikahan</title><style>'+styles+'body{margin:0;background:#f4f2f5}.invite{width:100%;max-width:520px;margin:auto;min-height:100vh;box-shadow:none}.cover{min-height:100svh}</style></head><body><main class="invite">'+$('preview').innerHTML+'</main></body></html>';
-  const response=await fetch('/api/invitations',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+adminToken},body:JSON.stringify({slug,title:'The Wedding Of '+(cover?.groom||'')+' & '+(cover?.bride||''),data,html})});
+  const response=await fetch(editSlug?('/api/invitations/'+encodeURIComponent(editSlug)):'/api/invitations',{method:editSlug?'PUT':'POST',headers:{'content-type':'application/json','authorization':'Bearer '+adminToken},body:JSON.stringify({slug,title:'The Wedding Of '+(cover?.groom||'')+' & '+(cover?.bride||''),data,html})});
   const result=await response.json();
   if(!response.ok)throw new Error(result.error||'Gagal menerbitkan undangan.');
-  publishMessage.textContent='Berhasil diterbitkan: '+result.url;
+  publishMessage.textContent=editSlug?'Perubahan berhasil disimpan: '+result.url:'Berhasil diterbitkan: '+result.url;
   const link=document.createElement('a');link.href=result.url;link.target='_blank';link.rel='noopener';link.textContent=' Buka undangan';publishMessage.appendChild(link);
   const copy=document.createElement('button');copy.className='btn';copy.textContent='Salin tautan';copy.style.marginLeft='8px';copy.onclick=()=>navigator.clipboard.writeText(result.url);publishMessage.appendChild(copy);
-  notify('Undangan berhasil diterbitkan!');btn.textContent='Berhasil';
+  notify(editSlug?'Perubahan undangan berhasil disimpan!':'Undangan berhasil diterbitkan!');btn.textContent='Berhasil';
  }catch(err){publishMessage.textContent=err.message+' Pastikan database Cloudflare sudah dikonfigurasi.';btn.disabled=false;btn.textContent='Coba Lagi'}
 };
 
+
+// Saat dibuka dari Dashboard Admin, ambil kembali konten undangan dari database.
+(async function loadPublishedForEditing(){
+ if(!editSlug)return;
+ $('status').textContent='Memuat undangan...';
+ adminToken=prompt('Masukkan kunci admin untuk mengedit undangan /'+editSlug+':')||'';
+ if(!adminToken){notify('Kunci admin diperlukan untuk mengedit undangan.');return}
+ try{
+  const response=await fetch('/api/invitations/'+encodeURIComponent(editSlug),{headers:{authorization:'Bearer '+adminToken}});
+  const result=await response.json();
+  if(!response.ok)throw new Error(result.error||'Gagal memuat undangan.');
+  if(!Array.isArray(result.invitation?.data)||!result.invitation.data.length)throw new Error('Data undangan tidak ditemukan.');
+  data=result.invitation.data.map(x=>({enabled:true,animation:'none',...x}));
+  selected=data[0]?.id||null;
+  render();
+  $('status').textContent='Mode edit · /'+editSlug;
+  $('publishBtn').textContent='Simpan Perubahan';
+  $('publishBtn').onclick=openPublish;
+  notify('Undangan berhasil dimuat. Silakan edit lalu simpan perubahan.');
+ }catch(error){$('status').textContent='Gagal memuat';notify(error.message)}
+})();
 </script></body></html>
