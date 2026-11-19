@@ -32,7 +32,7 @@ const defaults=[
 {id:'sage-serenity',title:'Sage Serenity',category:'Minimalist',description:'Desain minimalis dengan warna sage yang tenang dan natural.',preview:'/sage-serenity.html',visible:true},
 {id:'royal-midnight',title:'Royal Midnight',category:'Classic Luxury',description:'Tampilan klasik biru navy dan emas untuk kesan mewah.',preview:'/royal-midnight.html',visible:true}
 ];
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);\nconst esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let templates=[],active='Semua';
 function art(id){const c={ 'blush-garden':['floral','❀','THE WEDDING OF','Raisa<br>&amp; Fajar','SABTU · 12 DESEMBER 2026'],'sage-serenity':['sage','✦','WEDDING INVITATION','Alif<br>&amp; Nadya','MINGGU · 20 DESEMBER 2026'],'royal-midnight':['classic','✧','YOU ARE INVITED TO','Rangga<br>&amp; Kirana','SABTU · 26 DESEMBER 2026']}[id]||['floral','✧','WEDDING INVITATION','Your Names','SAVE THE DATE'];return '<div class="cover '+c[0]+'"><div class="orn">'+c[1]+'</div><div class="small">'+c[2]+'</div><h2>'+c[3]+'</h2><div class="date">'+c[4]+'</div><div class="orn">❧</div></div>'}
 function renderFilters(){const cats=['Semua',...new Set(templates.map(x=>x.category).filter(Boolean))];$('filters').innerHTML=cats.map(c=>'<button class="filter '+(active===c?'active':'')+'" data-category="'+esc(c)+'">'+esc(c)+'</button>').join('');document.querySelectorAll('[data-category]').forEach(b=>b.onclick=()=>{active=b.dataset.category;renderFilters();renderCards()})}
