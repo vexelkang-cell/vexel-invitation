@@ -75,7 +75,7 @@ export async function onRequest({ request, env, next }) {
     }
   }
   // Manajemen tamu: token acak untuk tautan personal.
-  const guestPublicMatch = /^api\\/guest\\/([a-f0-9-]{36})$/.exec(path);
+  const guestPublicMatch = /^api\/guest\/([a-f0-9-]{36})$/.exec(path);
   if (guestPublicMatch && request.method === "GET") {
     if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
     await env.VEXEL_DB.prepare("CREATE TABLE IF NOT EXISTS invitation_guests (id TEXT PRIMARY KEY, invitation_slug TEXT NOT NULL, guest_name TEXT NOT NULL, phone TEXT, guest_group TEXT, created_at TEXT NOT NULL)").run();
@@ -83,8 +83,8 @@ export async function onRequest({ request, env, next }) {
     if (!guest) return json({ error: "Tautan tamu tidak ditemukan." }, 404);
     return json({ ok: true, name: guest.guest_name, slug: guest.invitation_slug });
   }
-  const guestListMatch = /^api\\/invitations\\/([a-z0-9-]+)\\/guests$/.exec(path);
-  const guestDeleteMatch = /^api\\/invitations\\/([a-z0-9-]+)\\/guests\\/([a-f0-9-]{36})$/.exec(path);
+  const guestListMatch = /^api\/invitations\/([a-z0-9-]+)\/guests$/.exec(path);
+  const guestDeleteMatch = /^api\/invitations\/([a-z0-9-]+)\/guests\/([a-f0-9-]{36})$/.exec(path);
   if ((guestListMatch || guestDeleteMatch) && ["GET", "POST", "DELETE"].includes(request.method)) {
     if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
     if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
