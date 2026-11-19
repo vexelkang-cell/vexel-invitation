@@ -223,8 +223,11 @@ export async function onRequest({ request, env, next }) {
       const urlText = String(result.url || "");
       const idFromUrl = urlText.includes("id=") ? urlText.split("id=").pop().split("&")[0] : (urlText.includes("/d/") ? urlText.split("/d/").pop().split("/")[0] : "");
       const fileId = String(result.fileId || idFromUrl).trim();
-      // Google Drive viewer URLs cannot be used directly as an image source.
-      const displayUrl = fileId ? "https://drive.google.com/uc?export=view&id=" + encodeURIComponent(fileId) : result.url;
+      // Use Drive thumbnail endpoint for browser-friendly image previews.
+      // Keep the original Drive URL for audio files.
+      const displayUrl = fileId && !isAudio
+        ? "https://drive.google.com/thumbnail?id=" + encodeURIComponent(fileId) + "&sz=w2000"
+        : result.url;
       return json({ ok: true, url: displayUrl, fileId: fileId || null });
     } catch (error) {
       console.error("Google Drive upload request failed", String(error));
