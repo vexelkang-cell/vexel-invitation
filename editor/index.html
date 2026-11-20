@@ -211,7 +211,7 @@ function orderedSubLayers(x,keys,parts){
  base.sort((a,b)=>{const ai=saved.indexOf(a),bi=saved.indexOf(b);return (ai<0?keys.indexOf(a):ai)-(bi<0?keys.indexOf(b):bi)});
  return base.map(k=>parts[k]||'').join('');
 }
-function photoStyleCss(x,key){const v=x.photoStyle?.[key]||{};const n=(k,d,min,max)=>Math.max(min,Math.min(max,Number(v[k]??d)));const fit=['cover','contain','fill'].includes(v.fit)?v.fit:'cover';return 'width:'+n('width',70,40,100)+'%;height:'+n('height',132,50,400)+'px;object-fit:'+fit+';border-radius:'+n('radius',90,0,200)+'px;transform:rotate('+n('rotation',0,-180,180)+'deg);opacity:'+n('opacity',100,0,100)/100+';'+(v.shadow?'filter:drop-shadow(0 5px 12px #0004);':'');}
+function photoStyleCss(x,key){const v=x.photoStyle?.[key]||{};const n=(k,d,min,max)=>Math.max(min,Math.min(max,Number(v[k]??d)));const fit=['cover','contain','fill'].includes(v.fit)?v.fit:'cover';return 'width:'+n('width',70,40,100)+'%;height:'+n('height',132,50,400)+'px;object-fit:'+fit+';border-radius:'+n('radius',90,0,200)+'px;transform:rotate('+n('rotation',0,-180,180)+'deg);opacity:'+n('opacity',100,0,100)/100+';';}
 function coupleMarkup(x,a){
  const parts={
  coupleHeading:layerEnabled(x,'coupleHeading')?'<h2 style="'+headingCss(x)+'">'+esc(x.title)+'</h2>':'',
