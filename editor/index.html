@@ -142,11 +142,29 @@ if(newFlow){
  try{localStorage.setItem('vexel-asset-collection-'+(projectSetup.slug||editorParams.get('slug')||'draft'),JSON.stringify(projectSetup.assets||[]))}catch(e){}
  history.replaceState({},'',location.pathname+(editorParams.get('slug')?'?draft='+encodeURIComponent(editorParams.get('slug')):''));
 }
-let selected=data[0]?.id||null,selectedCanvas=false,selectedSubLayer=null,selectedOrnamentIndex=null,size='mobile',dragged=null,adminToken=localStorage.getItem('vexel_admin_token')||'',editSlug=editorParams.get('edit');const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let selected=data[0]?.id||null,selectedCanvas=false,selectedSubLayer=null,selectedOrnamentIndex=null,size='mobile',dragged=null,adminToken=localStorage.getItem('vexel_admin_token')||'',editSlug=editorParams.get('edit'),draftId=editorParams.get('draftId'),draftTitle='';const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notify(t){$('toast').textContent=t;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',2200)}
 let undoStack=[],redoStack=[],lastHistoryState=JSON.stringify(data),historyLock=false;
 function updateHistoryButtons(){const canUndo=undoStack.length>0,canRedo=redoStack.length>0;if($('undoBtn'))$('undoBtn').disabled=!canUndo;if($('redoBtn'))$('redoBtn').disabled=!canRedo;const undoMenu=document.querySelector('[data-edit-action="undo"]'),redoMenu=document.querySelector('[data-edit-action="redo"]');if(undoMenu)undoMenu.disabled=!canUndo;if(redoMenu)redoMenu.disabled=!canRedo}
 function save(silent=false){const snapshot=JSON.stringify(data);if(!historyLock&&snapshot!==lastHistoryState){undoStack.push(lastHistoryState);if(undoStack.length>60)undoStack.shift();redoStack=[];lastHistoryState=snapshot}try{localStorage.setItem('vexel-editor-data',snapshot);$('status').textContent='● Tersimpan di perangkat';if(!silent)notify('Draft berhasil disimpan di perangkat ini')}catch(e){notify('Penyimpanan penuh. Coba gunakan foto berukuran lebih kecil.')}updateHistoryButtons()}
+async function saveRemoteDraft(){
+ if(!adminToken){notify('Login admin terlebih dahulu melalui tombol Kunci Admin.');return}
+ const isNew=!draftId;
+ if(isNew){const name=prompt('Nama draft undangan:','Draft Undangan');if(name===null)return;draftTitle=name.trim()||'Draft Undangan'}
+ const assetKey='vexel-asset-collection-'+(projectSetup.slug||editSlug||'draft');
+ let assets=[];try{assets=JSON.parse(localStorage.getItem(assetKey)||'[]')||[]}catch(e){}
+ const btn=fileMenuDropdown.querySelector('[data-file-action="save"]');
+ if(btn){btn.disabled=true;btn.textContent='Menyimpan…'}
+ $('status').textContent='Menyimpan draft ke server…';
+ try{
+  const url=isNew?'/api/drafts':'/api/drafts/'+encodeURIComponent(draftId);
+  const response=await fetch(url,{method:isNew?'POST':'PUT',headers:{'content-type':'application/json',authorization:'Bearer '+adminToken},body:JSON.stringify({title:draftTitle||'Draft Undangan',data,assets})});
+  const result=await response.json();if(!response.ok)throw Error(result.error||'Gagal menyimpan draft');
+  if(isNew){draftId=result.draft.id;draftTitle=result.draft.title;history.replaceState({},'',location.pathname+'?draftId='+encodeURIComponent(draftId))}
+  save(true);$('status').textContent='● Draft tersimpan di Admin';notify('Draft berhasil disimpan di halaman Admin.');
+ }catch(error){$('status').textContent='Gagal menyimpan draft';notify(error.message)}
+ finally{if(btn){btn.disabled=false;btn.innerHTML='Simpan <span>Ctrl+S</span>'}}
+}
 function applyHistory(from,to,label){if(!from.length)return;to.push(JSON.stringify(data));const snapshot=from.pop();historyLock=true;try{data=JSON.parse(snapshot);lastHistoryState=snapshot;selected=data.some(x=>x.id===selected)?selected:(data[0]?.id||null);render();localStorage.setItem('vexel-editor-data',snapshot);$('status').textContent='● Tersimpan di perangkat';notify(label+' berhasil')}catch(e){notify('Tidak dapat memulihkan perubahan')}finally{historyLock=false;updateHistoryButtons()}}
 function undo(){applyHistory(undoStack,redoStack,'Undo')}
 function redo(){applyHistory(redoStack,undoStack,'Redo')}
@@ -408,7 +426,7 @@ fileMenuDropdown.querySelectorAll('[data-file-action]').forEach(btn=>btn.onclick
  const action=btn.dataset.fileAction;closeFileMenu();
  if(action==='new'){if(!confirm('Buat proyek baru? Pastikan perubahan proyek saat ini sudah disimpan.'))return;location.href='buat.html';return}
  if(action==='open'){projectFileInput.value='';projectFileInput.click();return}
- if(action==='save'){save();return}
+ if(action==='save'){saveRemoteDraft();return}
  if(action==='saveas'){downloadProject();return}
 });
 projectFileInput.addEventListener('change',async()=>{
@@ -419,7 +437,7 @@ projectFileInput.addEventListener('change',async()=>{
   data=imported;selected=data[0]?.id||null;selectedSubLayer=null;selectedOrnamentIndex=null;selectedCanvas=false;undoStack=[];redoStack=[];lastHistoryState=JSON.stringify(data);render();save(true);notify('Proyek berhasil dibuka');
  }catch(error){notify(error.message||'Gagal membuka proyek')}
 });
-document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();save()}if(e.key==='Escape')closeFileMenu()});$('previewBtn').onclick=()=>{const w=window.open('','_blank');if(!w){notify('Izinkan pop-up untuk membuka preview');return}const styles=[...document.querySelectorAll('style')].map(style=>style.innerHTML).join('\n');const previewCopy=$('preview').cloneNode(true);previewCopy.classList.remove('canvas-editing','canvas-object-selected');previewCopy.querySelectorAll('.canvas-resize-handle,[data-canvas-resize="true"]').forEach(el=>el.remove());previewCopy.querySelectorAll('.canvas-object').forEach(el=>{el.classList.remove('canvas-object','canvas-object-selected');el.removeAttribute('data-canvas-object');el.removeAttribute('data-component-id')});previewCopy.querySelectorAll('[style]').forEach(el=>{if(el.style.transform&&el.style.transform.includes('translate'))el.style.transform=''});const previewHtml='<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#fff5f7"><title>Preview Undangan | VEXEL INVITATION</title><style>'+styles+'html,body{margin:0;min-height:100%;overflow-x:hidden;overflow-y:auto;background:#f1eef2}body{padding:0}.invite{width:100%;max-width:520px;margin:0 auto;background:#fff;min-height:100vh;text-align:center;box-shadow:0 0 24px #0001}</style></head><body>'+previewCopy.outerHTML+'</body></html>';w.document.open();w.document.write(previewHtml);w.document.close()};
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveRemoteDraft()}if(e.key==='Escape')closeFileMenu()});$('previewBtn').onclick=()=>{const w=window.open('','_blank');if(!w){notify('Izinkan pop-up untuk membuka preview');return}const styles=[...document.querySelectorAll('style')].map(style=>style.innerHTML).join('\n');const previewCopy=$('preview').cloneNode(true);previewCopy.classList.remove('canvas-editing','canvas-object-selected');previewCopy.querySelectorAll('.canvas-resize-handle,[data-canvas-resize="true"]').forEach(el=>el.remove());previewCopy.querySelectorAll('.canvas-object').forEach(el=>{el.classList.remove('canvas-object','canvas-object-selected');el.removeAttribute('data-canvas-object');el.removeAttribute('data-component-id')});previewCopy.querySelectorAll('[style]').forEach(el=>{if(el.style.transform&&el.style.transform.includes('translate'))el.style.transform=''});const previewHtml='<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#fff5f7"><title>Preview Undangan | VEXEL INVITATION</title><style>'+styles+'html,body{margin:0;min-height:100%;overflow-x:hidden;overflow-y:auto;background:#f1eef2}body{padding:0}.invite{width:100%;max-width:520px;margin:0 auto;background:#fff;min-height:100vh;text-align:center;box-shadow:0 0 24px #0001}</style></head><body>'+previewCopy.outerHTML+'</body></html>';w.document.open();w.document.write(previewHtml);w.document.close()};
 let previewZoom=1;
 function updatePreviewZoom(){
  const canvas=$('previewCanvas'),stage=$('previewStage'),el=$('preview');
@@ -542,6 +560,23 @@ $('confirmPublish').onclick=async()=>{
  }catch(err){publishMessage.textContent=err.message+' Pastikan database Cloudflare sudah dikonfigurasi.';btn.disabled=false;btn.textContent='Coba Lagi'}
 };
 
+
+// Saat dibuka dari Dashboard Admin, ambil kembali draft yang tersimpan di database.
+(async function loadEditorDraft(){
+ if(!draftId)return;
+ $('status').textContent='Memuat draft dari Admin…';
+ if(!adminToken){notify('Kunci admin diperlukan untuk membuka draft.');return}
+ try{
+  const response=await fetch('/api/drafts/'+encodeURIComponent(draftId),{headers:{authorization:'Bearer '+adminToken}});
+  const result=await response.json();if(!response.ok)throw Error(result.error||'Gagal memuat draft.');
+  const draft=result.draft;if(!Array.isArray(draft?.data)||!draft.data.length)throw Error('Isi draft tidak ditemukan.');
+  data=draft.data.map(x=>({enabled:true,animation:'none',...x}));draftTitle=draft.title||'Draft Undangan';
+  projectSetup={...projectSetup,slug:'draft-'+draftId,assets:draft.assets||[]};
+  try{localStorage.setItem('vexel-asset-collection-draft-'+draftId,JSON.stringify(projectSetup.assets))}catch(e){}
+  selected=data[0]?.id||null;selectedSubLayer=null;selectedOrnamentIndex=null;selectedCanvas=false;undoStack=[];redoStack=[];lastHistoryState=JSON.stringify(data);
+  render();$('status').textContent='Mode draft · '+draftTitle;notify('Draft berhasil dibuka. Silakan edit lalu klik File → Simpan.');
+ }catch(error){$('status').textContent='Gagal memuat draft';notify(error.message)}
+})();
 
 // Saat dibuka dari Dashboard Admin, ambil kembali konten undangan dari database.
 (async function loadPublishedForEditing(){
