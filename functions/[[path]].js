@@ -10,6 +10,53 @@ export async function onRequest({ request, env, next }) {
   let path;
   try { path = decodeURIComponent(url.pathname.replace(/^\/+|\/+$/g, "")); }
   catch { return new Response("Alamat tidak valid.", { status: 400 }); }
+  // Draft editor: proyek yang belum diterbitkan, tersimpan terpisah dari undangan publik.
+  if (path === "api/drafts" && ["GET", "POST"].includes(request.method)) {
+    if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
+    if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
+    await env.VEXEL_DB.prepare("CREATE TABLE IF NOT EXISTS editor_drafts (id TEXT PRIMARY KEY, title TEXT NOT NULL, payload TEXT NOT NULL, assets TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)").run();
+    if (request.method === "GET") {
+      const { results = [] } = await env.VEXEL_DB.prepare("SELECT id, title, created_at, updated_at FROM editor_drafts ORDER BY updated_at DESC").all();
+      return json({ ok: true, drafts: results });
+    }
+    let body; try { body = await request.json(); } catch { return json({ error: "Data draft tidak valid." }, 400); }
+    if (!Array.isArray(body.data) || !body.data.length) return json({ error: "Konten draft kosong atau tidak valid." }, 400);
+    const payload = JSON.stringify(body.data), assets = JSON.stringify(Array.isArray(body.assets) ? body.assets : []);
+    if (payload.length + assets.length > 8_000_000) return json({ error: "Ukuran draft terlalu besar. Kurangi ukuran atau jumlah aset." }, 413);
+    const id = crypto.randomUUID(), now = new Date().toISOString(), title = String(body.title || "Draft Undangan").trim().slice(0, 120) || "Draft Undangan";
+    await env.VEXEL_DB.prepare("INSERT INTO editor_drafts (id, title, payload, assets, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").bind(id, title, payload, assets, now, now).run();
+    return json({ ok: true, draft: { id, title, created_at: now, updated_at: now } });
+  }
+  const draftMatch = /^api\/drafts\/([a-f0-9-]{36})$/.exec(path);
+  const draftDuplicateMatch = /^api\/drafts\/([a-f0-9-]{36})\/duplicate$/.exec(path);
+  if ((draftMatch || draftDuplicateMatch) && ["GET", "PUT", "DELETE", "POST"].includes(request.method)) {
+    if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
+    if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
+    await env.VEXEL_DB.prepare("CREATE TABLE IF NOT EXISTS editor_drafts (id TEXT PRIMARY KEY, title TEXT NOT NULL, payload TEXT NOT NULL, assets TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)").run();
+    const id = (draftMatch || draftDuplicateMatch)[1];
+    const row = await env.VEXEL_DB.prepare("SELECT id, title, payload, assets, created_at, updated_at FROM editor_drafts WHERE id = ?").bind(id).first();
+    if (!row) return json({ error: "Draft tidak ditemukan." }, 404);
+    if (draftDuplicateMatch && request.method === "POST") {
+      const newId = crypto.randomUUID(), now = new Date().toISOString();
+      await env.VEXEL_DB.prepare("INSERT INTO editor_drafts (id, title, payload, assets, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").bind(newId, "Salinan - " + row.title, row.payload, row.assets || "[]", now, now).run();
+      return json({ ok: true, draft: { id: newId, title: "Salinan - " + row.title, created_at: now, updated_at: now } });
+    }
+    if (request.method === "GET") {
+      let data, assets; try { data = JSON.parse(row.payload); assets = JSON.parse(row.assets || "[]"); } catch { return json({ error: "Isi draft rusak." }, 500); }
+      return json({ ok: true, draft: { id: row.id, title: row.title, data, assets, created_at: row.created_at, updated_at: row.updated_at } });
+    }
+    if (request.method === "DELETE") {
+      await env.VEXEL_DB.prepare("DELETE FROM editor_drafts WHERE id = ?").bind(id).run();
+      return json({ ok: true, id });
+    }
+    let body; try { body = await request.json(); } catch { return json({ error: "Data draft tidak valid." }, 400); }
+    if (!Array.isArray(body.data) || !body.data.length) return json({ error: "Konten draft kosong atau tidak valid." }, 400);
+    const payload = JSON.stringify(body.data), assets = JSON.stringify(Array.isArray(body.assets) ? body.assets : []);
+    if (payload.length + assets.length > 8_000_000) return json({ error: "Ukuran draft terlalu besar. Kurangi ukuran atau jumlah aset." }, 413);
+    const title = String(body.title || row.title).trim().slice(0, 120) || row.title, now = new Date().toISOString();
+    await env.VEXEL_DB.prepare("UPDATE editor_drafts SET title = ?, payload = ?, assets = ?, updated_at = ? WHERE id = ?").bind(title, payload, assets, now, id).run();
+    return json({ ok: true, draft: { id, title, updated_at: now } });
+  }
   if (path === "api/invitations" && request.method === "GET") {
     if (!authorized(request, env)) return json({ error: "Akses admin tidak valid." }, 401);
     if (!env.VEXEL_DB) return json({ error: "Database belum terhubung." }, 503);
